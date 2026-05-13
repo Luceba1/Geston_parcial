@@ -1,10 +1,11 @@
-from sqlmodel import SQLModel, Field
 from typing import Optional
+from sqlmodel import Field, SQLModel
+from features.base import BaseModel
 
-class Ingrediente(SQLModel, table=True):
+
+class Ingrediente(BaseModel, SQLModel, table=True):
     __tablename__ = "ingredientes"
     
-    id: Optional[int] = Field(default=None, primary_key=True)
     nombre: str = Field(max_length=100)
     unidad_medida: str = Field(max_length=20)
     disponible: bool = Field(default=True)

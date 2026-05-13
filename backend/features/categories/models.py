@@ -1,10 +1,11 @@
-from sqlmodel import SQLModel, Field
-from typing import Optional
+from typing import Optional, List
+from sqlmodel import Field, Relationship, SQLModel
+from features.base import BaseModel
 
-class Categoria(SQLModel, table=True):
+
+class Categoria(BaseModel, SQLModel, table=True):
     __tablename__ = "categorias"
     
-    id: Optional[int] = Field(default=None, primary_key=True)
     nombre: str = Field(max_length=100)
     descripcion: Optional[str] = Field(default=None, max_length=500)
     slug: str = Field(max_length=100, unique=True, index=True)

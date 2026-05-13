@@ -2,7 +2,7 @@ from typing import Generator
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session as DbSession
+from sqlmodel import Session
 
 from dependencies import get_db_session
 from core.security import decode_token
@@ -13,7 +13,7 @@ security = HTTPBearer(auto_error=False)
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: DbSession = Depends(get_db_session),
+    db: Session = Depends(get_db_session),
 ) -> Usuario:
     if credentials is None:
         raise HTTPException(

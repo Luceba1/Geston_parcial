@@ -12,9 +12,9 @@ from pydantic import BaseModel
 
 class ErrorDetail(BaseModel):
     """RFC 7807 Problem Details schema."""
-    type: str
-    title: str
-    status: int
+    type: str = "https://httpstatuses.com/500"
+    title: str = "Error"
+    status: int = 500
     detail: Optional[str] = None
     instance: Optional[str] = None
     extra: Optional[dict] = None

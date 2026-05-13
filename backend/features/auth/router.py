@@ -1,54 +1,123 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, EmailStr
-from passlib.context import CryptContext
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.security import HTTPBearer
+from slowapi.errors import RateLimitExceeded
 
-from features.auth.models import Usuario
+from dependencies import get_db_session
+from core.rate_limit import limiter
+from features.auth.schemas import (
+    RegisterRequest,
+    LoginRequest,
+    RefreshTokenRequest,
+    TokenResponse,
+    UserResponse,
+)
+from features.auth.service import AuthService
 from features.auth.dependencies import get_current_user
-from core.security import create_access_token, verify_password, get_password_hash
+from features.auth.models import Usuario
+from sqlmodel import Session
 
 router = APIRouter()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
+def get_auth_service(db: Session = Depends(get_db_session)) -> AuthService:
+    return AuthService(db)
 
 
-class LoginResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    user: dict
+@router.post(
+    "/register",
+    response_model=TokenResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Registro de nuevo usuario",
+)
+async def register(
+    request: RegisterRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Registra un nuevo usuario con rol CLIENT automáticamente.
+    
+    - El email debe ser único
+    - La contraseña debe tener al menos 8 caracteres
+    - Se asigna rol CLIENT automáticamente
+    - Retorna access token + refresh token
+    """
+    return auth_service.register(request)
 
 
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str
-    nombre: str
-    telefono: str | None = None
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    summary="Inicio de sesión",
+)
+@limiter.limit("5/15minutes")
+async def login(
+    request: Request,
+    login_data: LoginRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Inicia sesión con email y contraseña.
+    
+    - Rate limit: 5 intentos cada 15 minutos por IP
+    - Retorna access token (30 min) + refresh token (7 días)
+    - No diferencia "email no existe" de "contraseña incorrecta"
+    """
+    return auth_service.login(login_data)
 
 
-@router.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest):
-    """Endpoint de login - buscar usuario por email y verificar contraseña."""
-    # TODO: Implementar con base de datos real
-    # Por ahora retornamos token de prueba
-    raise HTTPException(status_code=501, detail="Login aún no implementado con BD")
+@router.post(
+    "/refresh",
+    response_model=TokenResponse,
+    summary="Renovar tokens",
+)
+async def refresh(
+    request: RefreshTokenRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Renueva el access token usando un refresh token válido.
+    
+    - Aplica rotación: el refresh token anterior se revoca
+    - Si se detecta reuso (replay attack), se revocan TODOS los tokens del usuario
+    """
+    return auth_service.refresh(request.refresh_token)
 
 
-@router.post("/register", response_model=dict)
-async def register(request: RegisterRequest):
-    """Endpoint de registro de nuevos usuarios."""
-    # TODO: Implementar con base de datos real
-    raise HTTPException(status_code=501, detail="Registro aún no implementado con BD")
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Cerrar sesión",
+)
+async def logout(
+    request: RefreshTokenRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Cierra la sesión revocando el refresh token.
+    
+    El access token sigue siendo válido hasta su expiración natural (stateless).
+    """
+    auth_service.logout(request.refresh_token)
 
 
-@router.get("/me")
-async def me(current_user: Usuario = Depends(get_current_user)):
-    """Obtener información del usuario actual."""
-    return {
-        "id": current_user.id,
-        "email": current_user.email,
-        "nombre": current_user.nombre,
-        "telefono": current_user.telefono,
-    }
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    summary="Perfil del usuario actual",
+)
+async def me(
+    current_user: Usuario = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Obtiene los datos del usuario autenticado."""
+    return auth_service.get_user_profile(current_user)
+
+
+@router.put(
+    "/me",
+    response_model=UserResponse,
+    summary="Actualizar perfil del usuario actual",
+)
+async def update_me(
+    data: dict,
+    current_user: Usuario = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """Actualiza nombre y/o teléfono del perfil."""
+    return auth_service.update_profile(current_user, data)

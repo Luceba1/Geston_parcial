@@ -8,4 +8,4 @@ class TimestampMixin:
     eliminado_en: Optional[datetime] = Field(default=None)
 
 class BaseModel(TimestampMixin):
-    id: int = Field(default=None, primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)

@@ -21,6 +21,9 @@ class Usuario(SQLModel, table=True):
     telefono: Optional[str] = Field(default=None, max_length=20)
     activo: bool = Field(default=True)
     es_superadmin: bool = Field(default=False)
+    creado_en: Optional[datetime] = Field(default=None)
+    actualizado_en: Optional[datetime] = Field(default=None)
+    eliminado_en: Optional[datetime] = Field(default=None)
     
     roles: List["UsuarioRol"] = Relationship(back_populates="usuario")
 

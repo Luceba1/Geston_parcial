@@ -1,13 +1,16 @@
-from contextlib import contextmanager
 from typing import Generator
-from sqlalchemy.orm import Session as DbSession
+from sqlmodel import Session
 
 from database import SessionLocal
 from features.repositories.unit_of_work import UnitOfWork
 
 
-@contextmanager
-def get_db_session() -> Generator[DbSession, None, None]:
+def get_db_session() -> Generator[Session, None, None]:
+    """FastAPI dependency que provee una sesión de BD.
+    
+    Sin @contextmanager porque FastAPI ya maneja generators
+    con yield como context managers automáticamente.
+    """
     session = SessionLocal()
     try:
         yield session
@@ -19,8 +22,8 @@ def get_db_session() -> Generator[DbSession, None, None]:
         session.close()
 
 
-@contextmanager
 def get_uow() -> Generator[UnitOfWork, None, None]:
+    """FastAPI dependency que provee un Unit of Work."""
     session = SessionLocal()
     try:
         uow = UnitOfWork(session)

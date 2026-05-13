@@ -1,10 +1,11 @@
-from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
+from sqlmodel import Field, Relationship, SQLModel
+from features.base import BaseModel
 
-class Producto(SQLModel, table=True):
+
+class Producto(BaseModel, SQLModel, table=True):
     __tablename__ = "productos"
     
-    id: Optional[int] = Field(default=None, primary_key=True)
     nombre: str = Field(max_length=200)
     descripcion: Optional[str] = Field(default=None, max_length=1000)
     precio: float = Field(ge=0)
@@ -16,6 +17,7 @@ class Producto(SQLModel, table=True):
     categorias: List["ProductoCategoria"] = Relationship(back_populates="producto")
     ingredientes: List["ProductoIngrediente"] = Relationship(back_populates="producto")
 
+
 class ProductoCategoria(SQLModel, table=True):
     __tablename__ = "producto_categorias"
     
@@ -25,6 +27,7 @@ class ProductoCategoria(SQLModel, table=True):
     
     producto: "Producto" = Relationship(back_populates="categorias")
     categoria: "Categoria" = Relationship()
+
 
 class ProductoIngrediente(SQLModel, table=True):
     __tablename__ = "producto_ingredientes"

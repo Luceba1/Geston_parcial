@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlmodel import Session
 from features.repositories.base_repository import BaseRepository
 from features.repositories.usuario_repository import UsuarioRepository
 from features.repositories.rol_repository import RolRepository

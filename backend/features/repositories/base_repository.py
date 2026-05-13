@@ -21,9 +21,43 @@ class BaseRepository(Generic[ModelType]):
     def get_by_id(self, id: int) -> Optional[ModelType]:
         return self._session.get(self._model, id)
 
-    def get_all(self, skip: int = 0, limit: int = 100) -> List[ModelType]:
-        statement = select(self._model).offset(skip).limit(limit)
+    def get_all(
+        self, skip: int = 0, limit: int = 100,
+        filters: Optional[dict] = None,
+        order_by: Optional[str] = None,
+        descending: bool = False,
+    ) -> List[ModelType]:
+        statement = select(self._model)
+        
+        if filters:
+            for key, value in filters.items():
+                column = getattr(self._model, key, None)
+                if column is not None:
+                    statement = statement.where(column == value)
+        
+        if order_by:
+            column = getattr(self._model, order_by, None)
+            if column is not None:
+                if descending:
+                    statement = statement.order_by(column.desc())
+                else:
+                    statement = statement.order_by(column)
+        
+        statement = statement.offset(skip).limit(limit)
         return list(self._session.exec(statement).all())
+
+    def count(self, filters: Optional[dict] = None) -> int:
+        from sqlmodel import func
+        statement = select(func.count()).select_from(self._model)
+        
+        if filters:
+            for key, value in filters.items():
+                column = getattr(self._model, key, None)
+                if column is not None:
+                    statement = statement.where(column == value)
+        
+        result = self._session.exec(statement).one()
+        return result
 
     def update(self, id: int, data: dict) -> Optional[ModelType]:
         db_object = self.get_by_id(id)

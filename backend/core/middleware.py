@@ -32,15 +32,23 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     Returns:
         JSONResponse with RFC 7807 problem details
     """
-    detail_data = exc.detail if isinstance(exc.detail, dict) else {"detail": str(exc.detail)}
+    if isinstance(exc.detail, dict):
+        detail_data = exc.detail
+    else:
+        detail_data = {
+            "type": f"https://httpstatuses.com/{exc.status_code}",
+            "title": "Error",
+            "status": exc.status_code,
+            "detail": str(exc.detail),
+        }
     
     return JSONResponse(
         status_code=exc.status_code,
         content=ErrorDetail(
-            type=detail_data.get("type") if isinstance(detail_data, dict) else f"https://httpstatuses.com/{exc.status_code}",
-            title=detail_data.get("title") if isinstance(detail_data, dict) else "Error",
+            type=detail_data.get("type", f"https://httpstatuses.com/{exc.status_code}"),
+            title=detail_data.get("title", "Error"),
             status=exc.status_code,
-            detail=detail_data.get("detail") if isinstance(detail_data, dict) else str(exc.detail),
+            detail=detail_data.get("detail"),
             instance=str(request.url),
         ).model_dump(exclude_none=True)
     )
@@ -176,6 +184,9 @@ async def sqlalchemy_exception_handler(
     Returns:
         JSONResponse with RFC 7807 problem details
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.exception("SQLAlchemy error processing %s %s", request.method, request.url)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
@@ -201,6 +212,9 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
     Returns:
         JSONResponse with RFC 7807 problem details
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.exception("Unhandled exception processing %s %s", request.method, request.url)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={

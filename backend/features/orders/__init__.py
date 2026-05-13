@@ -1,4 +1,4 @@
 # Orders
-from .models import EstadoPedido, Pedido, HistorialEstadoPedido
+from .models import EstadoPedido, Pedido, DetallePedido, HistorialEstadoPedido
 
-__all__ = ["EstadoPedido", "Pedido", "HistorialEstadoPedido"]
+__all__ = ["EstadoPedido", "Pedido", "DetallePedido", "HistorialEstadoPedido"]
