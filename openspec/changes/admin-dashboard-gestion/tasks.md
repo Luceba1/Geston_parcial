@@ -2,38 +2,38 @@
 
 ## 1. Backend - Modelo Configuracion
 
-- [ ] 1.1 Crear modelo `Configuracion` en `backend/features/admin/models.py`: id, clave (unique), valor (text), updated_by_user_id (FK usuarios), updated_at
-- [ ] 1.2 Agregar `Configuracion` a `alembic` migration (autogenerate)
-- [ ] 1.3 Agregar repo de Configuracion al UnitOfWork
+- [x] 1.1 Crear modelo `Configuracion` en `backend/features/admin/models.py`: id, clave (unique), valor (text), updated_by_user_id (FK usuarios), updated_at
+- [x] 1.2 Agregar `Configuracion` a `alembic` migration (autogenerate)
+- [x] 1.3 Agregar repo de Configuracion al UnitOfWork
 
 ## 2. Backend - Admin Schemas
 
-- [ ] 2.1 Crear `backend/features/admin/schemas.py`: UserListResponse, UserUpdateRequest, EstadoUpdateRequest, MetricasResumen, VentasPorPeriodo (con granularidad), TopProductoResponse, PedidosPorEstadoResponse, ConfigResponse, ConfigUpdateRequest
+- [x] 2.1 Crear `backend/features/admin/schemas.py`
 
 ## 3. Backend - Admin Service (Usuarios)
 
-- [ ] 3.1 Implementar `list_users(q, rol, skip, limit)` con paginación, búsqueda ILIKE por nombre/email, filtro por rol
-- [ ] 3.2 Implementar `update_user(user_id, data)` con actualización de roles (validar último admin)
-- [ ] 3.3 Implementar `toggle_user_status(user_id, activo, current_user_id)` con validación de auto-desactivación + revocación de tokens
+- [x] 3.1 Implementar `list_users(q, rol, skip, limit)`
+- [x] 3.2 Implementar `update_user(user_id, data)`
+- [x] 3.3 Implementar `toggle_user_status(user_id, activo, current_user_id)`
 
 ## 4. Backend - Admin Service (Métricas)
 
-- [ ] 4.1 Implementar `get_resumen(desde, hasta)` con queries SQL de agregación (SUM, COUNT, GROUP BY) sobre pedidos + usuarios
-- [ ] 4.2 Implementar `get_ventas(desde, hasta, granularidad)` con DATE_TRUNC para agrupar por día/semana/mes
-- [ ] 4.3 Implementar `get_top_productos(top, desde, hasta)` con JOIN detalles_pedido + pedidos, GROUP BY producto_id
-- [ ] 4.4 Implementar `get_pedidos_por_estado(desde, hasta)` con LEFT JOIN estados_pedido para incluir estados con 0 pedidos
+- [x] 4.1 Implementar `get_resumen(desde, hasta)`
+- [x] 4.2 Implementar `get_ventas(desde, hasta, granularidad)`
+- [x] 4.3 Implementar `get_top_productos(top, desde, hasta)`
+- [x] 4.4 Implementar `get_pedidos_por_estado(desde, hasta)`
 
 ## 5. Backend - Admin Service (Config)
 
-- [ ] 5.1 Implementar `get_config()` devuelve todas las configuraciones
-- [ ] 5.2 Implementar `update_config(configs: dict, user_id)` upsert por clave con auditoría
+- [x] 5.1 Implementar `get_config()`
+- [x] 5.2 Implementar `update_config(configs: dict, user_id)`
 
 ## 6. Backend - Admin Router
 
-- [ ] 6.1 Crear `backend/features/admin/router.py` con GET /api/admin/usuarios, PUT /api/admin/usuarios/{id}, PATCH /api/admin/usuarios/{id}/estado — todos protegidos con require_role("admin")
-- [ ] 6.2 Agregar GET /api/admin/metricas/resumen, GET /api/admin/metricas/ventas, GET /api/admin/metricas/productos-top, GET /api/admin/metricas/pedidos-por-estado
-- [ ] 6.3 Agregar GET /api/admin/configuracion y PUT /api/admin/configuracion
-- [ ] 6.4 Registrar router de admin en `backend/main.py` con prefijo `/api/admin`
+- [x] 6.1 Crear `backend/features/admin/router.py` con GET /api/admin/usuarios, PUT /api/admin/usuarios/{id}, PATCH /api/admin/usuarios/{id}/estado
+- [x] 6.2 Agregar GET /api/admin/metricas/resumen, GET /api/admin/metricas/ventas, GET /api/admin/metricas/productos-top, GET /api/admin/metricas/pedidos-por-estado
+- [x] 6.3 Agregar GET /api/admin/configuracion y PUT /api/admin/configuracion
+- [x] 6.4 Registrar router de admin en `backend/main.py` con prefijo `/api/admin`
 
 ## 7. Frontend - DashboardPage
 

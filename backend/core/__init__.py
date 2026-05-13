@@ -10,6 +10,7 @@ from .exceptions import (
     NotFoundException,
     UnauthorizedException,
     ForbiddenException,
+    BadRequestException,
     ValidationException,
     ConflictException,
 )

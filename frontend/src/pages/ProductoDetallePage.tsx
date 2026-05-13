@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { Button } from '../shared/ui/Button'
 import { Card } from '../shared/ui/Card'
@@ -35,7 +35,6 @@ interface ProductoDetalle {
 
 export default function ProductoDetallePage() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
   const [product, setProduct] = useState<ProductoDetalle | null>(null)
   const [loading, setLoading] = useState(true)
   const [cantidad, setCantidad] = useState(1)

@@ -160,7 +160,7 @@ export default function PedidosPage() {
                         <Button
                           key={action.nombre}
                           size="sm"
-                          variant={action.color === 'red' ? 'outline' : 'default'}
+                          variant={action.color === 'red' ? 'outline' : 'primary'}
                           onClick={() => handleTransition(pedido.id, action.nombre)}
                           disabled={updating === pedido.id}
                         >

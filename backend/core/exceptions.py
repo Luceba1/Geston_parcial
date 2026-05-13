@@ -69,6 +69,21 @@ class ValidationException(HTTPException):
         super().__init__(status_code=422, detail=detail)
 
 
+class BadRequestException(HTTPException):
+    """Exception raised for bad requests.
+
+    Args:
+        detail: Error message
+    """
+    def __init__(self, detail: str) -> None:
+        super().__init__(status_code=400, detail={
+            "type": "https://httpstatuses.com/400",
+            "title": "Bad Request",
+            "status": 400,
+            "detail": detail
+        })
+
+
 class ConflictException(HTTPException):
     """Exception raised for resource conflicts.
     

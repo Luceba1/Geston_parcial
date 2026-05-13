@@ -12,18 +12,7 @@ import DireccionesPage from '../pages/DireccionesPage'
 import PerfilPage from '../pages/PerfilPage'
 import OrdersPage from '../pages/OrdersPage'
 import OrderDetailPage from '../pages/OrderDetailPage'
-import { CategoriasPage, IngredientesPage, ProductosPage, PedidosPage } from '../pages/admin'
-
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white rounded-xl shadow-lg p-8 text-center">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">{title}</h1>
-        <p className="text-gray-500">Próximamente disponible</p>
-      </div>
-    </div>
-  )
-}
+import { CategoriasPage, IngredientesPage, ProductosPage, PedidosPage, DashboardPage, UsuariosPage, ConfigPage } from '../pages/admin'
 
 export function AppRoutes() {
   return (
@@ -54,7 +43,9 @@ export function AppRoutes() {
       {/* Rutas protegidas por rol (STOCK/ADMIN/REPARTIDOR) */}
       <Route element={<ProtectedRoute roles={['STOCK', 'ADMIN', 'admin', 'cocinero', 'repartidor']} />}>
         <Route element={<Layout />}>
-          <Route path="/admin" element={<PlaceholderPage title="Panel de Administración" />} />
+          <Route path="/admin" element={<DashboardPage />} />
+          <Route path="/admin/usuarios" element={<UsuariosPage />} />
+          <Route path="/admin/config" element={<ConfigPage />} />
           <Route path="/categorias" element={<CategoriasPage />} />
           <Route path="/ingredientes" element={<IngredientesPage />} />
           <Route path="/productos" element={<ProductosPage />} />

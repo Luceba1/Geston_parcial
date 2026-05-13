@@ -28,6 +28,7 @@ from backend.features.products.models import Producto, ProductoCategoria, Produc
 from backend.features.addresses.models import DireccionEntrega
 from backend.features.orders.models import EstadoPedido, Pedido, DetallePedido, HistorialEstadoPedido
 from backend.features.payments.models import FormaPago
+from backend.features.admin.models import Configuracion
 
 target_metadata = SQLModel.metadata
 

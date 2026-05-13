@@ -78,6 +78,9 @@ def create_app() -> FastAPI:
 
     from features.orders.router import router as pedidos_router
     app.include_router(pedidos_router, prefix="/api/v1/pedidos", tags=["pedidos"])
+
+    from features.admin.router import router as admin_router
+    app.include_router(admin_router, tags=["admin"])
     
     # Registrar endpoint de prueba en la raíz para verificar conexión
     @app.get("/api/v1/test")
