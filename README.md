@@ -3,6 +3,14 @@
 Sistema de e-commerce de productos alimenticios. Backend en FastAPI + MySQL, frontend en React + TypeScript + Vite.
 
 ---
+## Integrantes
+- Gianfranco Canciani
+- Lucas Pujada
+- Julio Leiva
+- Bruno Rivera
+
+  Comisión 1
+---
 
 ## Stack tecnológico
 
