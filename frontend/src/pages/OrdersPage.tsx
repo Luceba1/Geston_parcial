@@ -60,25 +60,31 @@ const STATUS_LABELS: Record<string, string> = {
   cancelado: 'Cancelado',
 }
 
+const LIMIT = 5
+
 export default function OrdersPage() {
   const [data, setData] = useState<PedidoListResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
   const addToast = useUIStore((s) => s.addToast)
 
   const fetchOrders = useCallback(async () => {
+    setLoading(true)
     try {
-      const res = await api.get('/pedidos?page=1&limit=50')
+      const res = await api.get(`/pedidos?page=${page}&limit=${LIMIT}`)
       setData(res.data)
     } catch {
       addToast('Error al cargar pedidos', 'error')
     } finally {
       setLoading(false)
     }
-  }, [addToast])
+  }, [page, addToast])
 
   useEffect(() => {
     fetchOrders()
   }, [fetchOrders])
+
+  const totalPages = data ? Math.ceil(data.total / data.limit) : 0
 
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground">Cargando pedidos...</div>
@@ -105,47 +111,83 @@ export default function OrdersPage() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-4">
-          {data.items.map((pedido) => (
-            <Link key={pedido.id} to={`/orders/${pedido.id}`}>
-              <Card className="p-5 hover:shadow-lg transition-shadow cursor-pointer">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="font-semibold text-foreground">
-                        Pedido #{pedido.id}
-                      </span>
-                      <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${STATUS_COLORS[pedido.estado_nombre] || 'bg-muted text-muted-foreground'}`}>
-                        {STATUS_LABELS[pedido.estado_nombre] || pedido.estado_nombre}
-                      </span>
+        <>
+          <div className="space-y-4">
+            {data.items.map((pedido) => (
+              <Link key={pedido.id} to={`/orders/${pedido.id}`}>
+                <Card className="p-5 hover:shadow-lg transition-shadow cursor-pointer">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="font-semibold text-foreground">
+                          Pedido #{pedido.id}
+                        </span>
+                        <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${STATUS_COLORS[pedido.estado_nombre] || 'bg-muted text-muted-foreground'}`}>
+                          {STATUS_LABELS[pedido.estado_nombre] || pedido.estado_nombre}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(pedido.fecha_pedido).toLocaleDateString('es-AR', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {pedido.detalles?.length || 0} producto{(pedido.detalles?.length || 0) !== 1 ? 's' : ''}
+                        {pedido.detalles && pedido.detalles.length > 0 && (
+                          <>: {pedido.detalles.map((d) => d.nombre_snapshot).join(', ').slice(0, 80)}...</>
+                        )}
+                      </p>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(pedido.fecha_pedido).toLocaleDateString('es-AR', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {pedido.detalles?.length || 0} producto{(pedido.detalles?.length || 0) !== 1 ? 's' : ''}
-                      {pedido.detalles && pedido.detalles.length > 0 && (
-                        <>: {pedido.detalles.map((d) => d.nombre_snapshot).join(', ').slice(0, 80)}...</>
-                      )}
-                    </p>
+                    <div className="text-right ml-4">
+                      <p className="font-bold text-primary">${pedido.total.toFixed(2)}</p>
+                      <svg className="w-5 h-5 text-muted-foreground mt-2 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
                   </div>
-                  <div className="text-right ml-4">
-                    <p className="font-bold text-primary">${pedido.total.toFixed(2)}</p>
-                    <svg className="w-5 h-5 text-muted-foreground mt-2 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </div>
-              </Card>
-            </Link>
-          ))}
-        </div>
+                </Card>
+              </Link>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-8">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-2 text-sm rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Anterior
+              </button>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`w-9 h-9 text-sm rounded-lg border transition-colors ${
+                    p === page
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'border-border hover:bg-muted'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-3 py-2 text-sm rounded-lg border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Siguiente
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

@@ -1,10 +1,17 @@
 import { Link } from 'react-router-dom'
 import { useCartStore } from '../stores'
+import { useAuthStore } from '../stores'
+
+const CART_ROLES = ['cliente', 'admin']
 
 export function CartBadge() {
   const totalItems = useCartStore((s) => s.totalItems())
+  const user = useAuthStore((s) => s.user)
 
-  if (totalItems === 0) return null
+  // Solo visible para roles que pueden gestionar carrito
+  const userRoles = user?.roles ?? []
+  const canViewCart = userRoles.some((r) => CART_ROLES.includes(r))
+  if (!canViewCart || totalItems === 0) return null
 
   return (
     <Link

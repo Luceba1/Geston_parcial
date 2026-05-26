@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useSearchParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { Button } from '../shared/ui/Button'
 import { api } from '../lib/api'
 import { usePaymentStore } from '../stores/paymentStore'
@@ -9,28 +9,22 @@ type EstadoConfirmacion = 'confirmando' | 'aprobado' | 'rechazado' | 'error' | '
 export default function PagoExitosoPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [estado, setEstado] = useState<EstadoConfirmacion>('confirmando')
   const { setPaymentStatus, reset } = usePaymentStore()
   const pedidoId = Number(id)
 
   useEffect(() => {
     const paymentId = searchParams.get('payment_id')
-
-    if (!paymentId) {
-      // Si no hay payment_id, no podemos confirmar — mostramos lo básico
-      setPaymentStatus('approved')
-      setEstado('sin_datos')
-      return
-    }
-
     let cancelled = false
 
     async function confirmar() {
       try {
-        const res = await api.post('/pagos/confirmar', {
-          pedido_id: pedidoId,
-          payment_id: Number(paymentId),
-        })
+        const body: Record<string, any> = { pedido_id: pedidoId }
+        if (paymentId) {
+          body.payment_id = Number(paymentId)
+        }
+        const res = await api.post('/pagos/confirmar', body)
         const data = res.data
 
         if (cancelled) return
@@ -60,6 +54,18 @@ export default function PagoExitosoPage() {
       reset()
     }
   }, [pedidoId, searchParams, setPaymentStatus, reset])
+
+  // ── Auto-redirección 3 segundos después de confirmado ──
+  const estadosRedirigibles: EstadoConfirmacion[] = ['aprobado', 'rechazado', 'sin_datos', 'error']
+  useEffect(() => {
+    if (!estadosRedirigibles.includes(estado)) return
+
+    const timer = setTimeout(() => {
+      navigate(`/orders/${pedidoId}`)
+    }, 3000)
+
+    return () => clearTimeout(timer)
+  }, [estado, pedidoId, navigate])
 
   // ── Estados de carga ─────────────────────────────
   if (estado === 'confirmando') {
@@ -94,14 +100,13 @@ export default function PagoExitosoPage() {
           <h1 className="mb-2 text-2xl font-bold text-foreground">¡Pago exitoso!</h1>
           <p className="mb-6 text-muted-foreground">
             Tu pago para el pedido <strong>#{id}</strong> fue procesado y confirmado correctamente.
-            Ya podés seguir el estado de tu pedido desde "Mis Pedidos".
+          </p>
+          <p className="text-sm text-muted-foreground mb-6">
+            Te llevamos a tu pedido en unos segundos...
           </p>
           <div className="flex justify-center gap-3">
             <Link to={`/orders/${id}`}>
-              <Button>Ver pedido</Button>
-            </Link>
-            <Link to="/orders">
-              <Button variant="outline">Mis pedidos</Button>
+              <Button>Ver pedido ahora</Button>
             </Link>
           </div>
         </div>

@@ -30,11 +30,18 @@ class CategoriaInfo(BaseModel):
         from_attributes = True
 
 
+class AlergenoInfo(BaseModel):
+    """Información liviana de un alérgeno para incluir en respuestas de productos."""
+    id: int
+    nombre: str
+    icono: Optional[str] = None
+
+
 class IngredienteInfo(BaseModel):
     id: int
     nombre: str
     cantidad: float
-    alergeno: bool = False
+    alergenos: List[AlergenoInfo] = []
 
     class Config:
         from_attributes = True
@@ -47,6 +54,7 @@ class ProductoResponse(BaseModel):
     precio: float
     imagen_url: Optional[str] = None
     activo: bool
+    disponible: bool = True
     stock: int
     tiempo_preparacion_minutos: int
     categorias: List[CategoriaInfo] = []

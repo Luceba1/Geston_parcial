@@ -11,10 +11,10 @@ interface CategoriaOption {
   subcategorias: CategoriaOption[]
 }
 
-interface IngredienteOption {
+interface AlergenoOption {
   id: number
   nombre: string
-  alergenos: string | null
+  icono?: string | null
 }
 
 export default function CatalogoPage() {
@@ -24,7 +24,7 @@ export default function CatalogoPage() {
   const [page, setPage] = useState(1)
   const [limit] = useState(12)
   const [categorias, setCategorias] = useState<CategoriaOption[]>([])
-  const [ingredientes, setIngredientes] = useState<IngredienteOption[]>([])
+  const [alergenos, setAlergenos] = useState<AlergenoOption[]>([])
   const addToast = useUIStore((s) => s.addToast)
 
   // Filters
@@ -32,6 +32,7 @@ export default function CatalogoPage() {
   const [categoriaId, setCategoriaId] = useState<number | undefined>(undefined)
   const [alergenosSeleccionados, setAlergenosSeleccionados] = useState<Set<number>>(new Set())
 
+  const [alergenoDropdownOpen, setAlergenoDropdownOpen] = useState(false)
   const excluirAlergenos = Array.from(alergenosSeleccionados).join(',')
 
   const fetchProducts = useCallback(async () => {
@@ -61,10 +62,10 @@ export default function CatalogoPage() {
     }
   }, [])
 
-  const fetchIngredientes = useCallback(async () => {
+  const fetchAlergenos = useCallback(async () => {
     try {
-      const res = await api.get('/ingredientes/')
-      setIngredientes(res.data.items || [])
+      const res = await api.get('/alergenos')
+      setAlergenos(res.data || [])
     } catch {
       // Non-critical
     }
@@ -72,8 +73,8 @@ export default function CatalogoPage() {
 
   useEffect(() => {
     fetchCategorias()
-    fetchIngredientes()
-  }, [fetchCategorias, fetchIngredientes])
+    fetchAlergenos()
+  }, [fetchCategorias, fetchAlergenos])
 
   useEffect(() => {
     fetchProducts()
@@ -82,10 +83,10 @@ export default function CatalogoPage() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     setPage(1)
-    fetchProducts()
   }
 
   const toggleAlergeno = (id: number) => {
+    setPage(1)
     setAlergenosSeleccionados((prev) => {
       const next = new Set(prev)
       if (next.has(id)) {
@@ -108,14 +109,6 @@ export default function CatalogoPage() {
     return result
   }
 
-  // Agrupar ingredientes por tipo de alérgeno
-  const alergenosAgrupados = ingredientes.reduce<Record<string, IngredienteOption[]>>((acc, ing) => {
-    const grupo = ing.alergenos ?? 'otros'
-    if (!acc[grupo]) acc[grupo] = []
-    acc[grupo].push(ing)
-    return acc
-  }, {})
-
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Header */}
@@ -137,7 +130,10 @@ export default function CatalogoPage() {
           <select
             className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus-visible:ring-ring"
             value={categoriaId ?? ''}
-            onChange={(e) => setCategoriaId(e.target.value ? Number(e.target.value) : undefined)}
+            onChange={(e) => {
+              setPage(1)
+              setCategoriaId(e.target.value ? Number(e.target.value) : undefined)
+            }}
           >
             <option value="">Todas las categorías</option>
             {flattenCats(categorias).map((cat) => (
@@ -150,7 +146,7 @@ export default function CatalogoPage() {
         <div>
           <div className="relative">
             <div className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-background cursor-pointer"
-                 onClick={() => document.getElementById('alergenos-dropdown')?.classList.toggle('hidden')}>
+                 onClick={() => setAlergenoDropdownOpen(prev => !prev)}>
               <span className={alergenosSeleccionados.size === 0 ? 'text-muted-foreground' : 'text-foreground'}>
                 {alergenosSeleccionados.size === 0
                   ? 'Excluir alérgenos...'
@@ -158,31 +154,23 @@ export default function CatalogoPage() {
               </span>
               <span className="float-right mt-0.5 text-muted-foreground">▾</span>
             </div>
-            <div id="alergenos-dropdown"
-                 className="hidden absolute z-20 mt-1 w-full bg-card border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-              {ingredientes.length === 0 ? (
+            <div className={`${alergenoDropdownOpen ? '' : 'hidden'} absolute z-20 mt-1 w-full bg-card border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto`}>
+              {alergenos.length === 0 ? (
                 <div className="p-3 text-sm text-muted-foreground">Cargando...</div>
               ) : (
-                Object.entries(alergenosAgrupados).map(([grupo, ings]) => (
-                  <div key={grupo}>
-                    <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
-                      {grupo}
-                    </div>
-                    {ings.map((ing) => (
-                      <label
-                        key={ing.id}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-accent cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={alergenosSeleccionados.has(ing.id)}
-                          onChange={() => toggleAlergeno(ing.id)}
-                          className="rounded border-border text-primary focus:ring-ring"
-                        />
-                        {ing.nombre}
-                      </label>
-                    ))}
-                  </div>
+                alergenos.map((alergeno) => (
+                  <label
+                    key={alergeno.id}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-accent cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={alergenosSeleccionados.has(alergeno.id)}
+                      onChange={() => toggleAlergeno(alergeno.id)}
+                      className="rounded border-border text-primary focus:ring-ring"
+                    />
+                    {alergeno.nombre}
+                  </label>
                 ))
               )}
             </div>

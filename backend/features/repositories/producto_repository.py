@@ -22,14 +22,16 @@ class ProductoRepository(BaseRepository[Producto]):
         excluir_alergenos: Optional[List[int]] = None,
     ) -> Tuple[List[Producto], int]:
         """Busca productos públicos activos con filtros."""
-        # Query base: solo productos activos y no eliminados
+        # Query base: solo productos activos, no eliminados y con stock disponible
         query = select(Producto).where(
             Producto.activo == True,
             Producto.eliminado_en == None,
+            Producto.stock > 0,
         )
         count_query = select(func.count()).select_from(Producto).where(
             Producto.activo == True,
             Producto.eliminado_en == None,
+            Producto.stock > 0,
         )
 
         # Filtro por categoría
@@ -47,11 +49,15 @@ class ProductoRepository(BaseRepository[Producto]):
             query = query.where(Producto.nombre.ilike(pattern))
             count_query = count_query.where(Producto.nombre.ilike(pattern))
 
-        # Excluir productos que contengan ciertos ingredientes (alérgenos)
+        # Excluir productos que contengan ciertos alérgenos (filtra por tipo de alérgeno)
         if excluir_alergenos:
-            from features.products.models import ProductoIngrediente
+            from features.ingredients.models import IngredienteAlergeno
             excl_subquery = select(ProductoIngrediente.producto_id).where(
-                ProductoIngrediente.ingrediente_id.in_(excluir_alergenos)
+                ProductoIngrediente.ingrediente_id.in_(
+                    select(IngredienteAlergeno.ingrediente_id).where(
+                        IngredienteAlergeno.alergeno_id.in_(excluir_alergenos)
+                    )
+                )
             )
             query = query.where(Producto.id.notin_(excl_subquery))
             count_query = count_query.where(Producto.id.notin_(excl_subquery))

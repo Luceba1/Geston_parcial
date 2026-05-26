@@ -11,6 +11,7 @@ class Producto(BaseModel, SQLModel, table=True):
     precio: float = Field(ge=0)
     imagen_url: Optional[str] = Field(default=None, max_length=500)
     activo: bool = Field(default=True)
+    disponible: bool = Field(default=True, description="Disponible para la venta (lo puede togglear cocina)")
     stock: int = Field(default=0, ge=0)
     tiempo_preparacion_minutos: int = Field(default=15)
     

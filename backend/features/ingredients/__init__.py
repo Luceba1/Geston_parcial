@@ -1,4 +1,4 @@
 # Ingredients
-from .models import Ingrediente
+from .models import Ingrediente, IngredienteAlergeno
 
-__all__ = ["Ingrediente"]
+__all__ = ["Ingrediente", "IngredienteAlergeno"]

@@ -34,10 +34,9 @@ def run_seed_sql():
             ("pendiente", "Pedido recibido, esperando confirmacion", 1),
             ("confirmado", "Pedido confirmado por el restaurante", 2),
             ("en_preparacion", "Pedido en cocina", 3),
-            ("listo_para_entrega", "Pedido listo para ser recogido/entregado", 4),
-            ("en_camino", "Pedido en camino (repartidor)", 5),
-            ("entregado", "Pedido entregado al cliente", 6),
-            ("cancelado", "Pedido cancelado", 7),
+            ("en_camino", "Pedido en camino (repartidor)", 4),
+            ("entregado", "Pedido entregado al cliente", 5),
+            ("cancelado", "Pedido cancelado", 6),
         ]
         for nombre, descripcion, orden in estados:
             result = conn.execute(text("SELECT id FROM estados_pedido WHERE nombre = :nombre"), {"nombre": nombre})

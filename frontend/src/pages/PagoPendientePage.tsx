@@ -15,21 +15,15 @@ export default function PagoPendientePage() {
 
   useEffect(() => {
     const paymentId = searchParams.get('payment_id')
-
-    if (!paymentId) {
-      setPaymentStatus('pending')
-      setEstado('sin_datos')
-      return
-    }
-
     let cancelled = false
 
     async function confirmar() {
       try {
-        const res = await api.post('/pagos/confirmar', {
-          pedido_id: pedidoId,
-          payment_id: Number(paymentId),
-        })
+        const body: Record<string, any> = { pedido_id: pedidoId }
+        if (paymentId) {
+          body.payment_id = Number(paymentId)
+        }
+        const res = await api.post('/pagos/confirmar', body)
         const data = res.data
 
         if (cancelled) return
@@ -44,7 +38,8 @@ export default function PagoPendientePage() {
           setPaymentStatus('pending')
           setEstado('pendiente')
         }
-      } catch {
+      } catch (error) {
+        console.error('Error confirmando pago:', error)
         if (cancelled) return
         setEstado('sin_datos')
       }

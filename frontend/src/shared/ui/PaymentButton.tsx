@@ -48,9 +48,7 @@ export function PaymentButton({ pedidoId, monto, disabled, pagoEstado }: Payment
         window.location.href = init_point
       }
     } catch (err: any) {
-      const detail = err.response?.data?.detail?.detail
-        || err.response?.data?.detail
-        || 'Error al iniciar el pago'
+      const detail = err.response?.data?.detail || 'Error al iniciar el pago'
       addToast(detail, 'error')
     } finally {
       setLoading(false)

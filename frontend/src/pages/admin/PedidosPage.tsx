@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { api } from '../../lib/api'
-import { Badge, Button, Card, PageContainer, TableSkeleton, ConfirmDialog } from '../../shared/ui'
+import { Badge, Button, Card, PageContainer, Pagination, TableSkeleton, ConfirmDialog } from '../../shared/ui'
 import { useConfirmDialog } from '../../shared/hooks/useConfirmDialog'
-import { usePagination } from '../../shared/hooks/usePagination'
+import { useAuthStore } from '../../stores/authStore'
 import { useUIStore } from '../../stores/uiStore'
 import { handleError } from '../../shared/utils/logger'
 import { helpContent } from './helpContent'
@@ -65,11 +65,8 @@ const ALLOWED_TRANSITIONS: Record<string, { to: string; label: string; roles: st
     { to: 'cancelado', label: 'Cancelar', roles: ['admin'] },
   ],
   en_preparacion: [
-    { to: 'listo_para_entrega', label: 'Listo para Entrega', roles: ['admin', 'cocinero'] },
+    { to: 'en_camino', label: 'Listo / En Camino', roles: ['admin', 'cocinero'] },
     { to: 'cancelado', label: 'Cancelar', roles: ['admin'] },
-  ],
-  listo_para_entrega: [
-    { to: 'en_camino', label: 'En Camino', roles: ['admin', 'repartidor'] },
   ],
   en_camino: [
     { to: 'entregado', label: 'Entregar', roles: ['admin', 'repartidor'] },
@@ -83,19 +80,21 @@ function formatCurrency(n: number) {
 export default function PedidosPage() {
   const [items, setItems] = useState<Pedido[]>([])
   const [loading, setLoading] = useState(true)
-  const [page] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const addToast = useUIStore((s) => s.addToast)
   const limit = 10
+  const totalPages = Math.ceil(total / limit)
 
   const cancelDialog = useConfirmDialog<Pedido>()
 
-  // Simulate current user roles (in real app, get from authStore)
-  const userRoles = useMemo(() => ['admin'], [])
+  const userRoles = useAuthStore((s) => s.user?.roles ?? [])
 
   const fetchItems = useCallback(async () => {
     try {
       const res = await api.get<PedidoListResponse>('/pedidos/admin', { params: { page, limit } })
       setItems(res.data.items)
+      setTotal(res.data.total)
     } catch {
       addToast('Error al cargar pedidos', 'error')
     } finally {
@@ -140,8 +139,6 @@ export default function PedidosPage() {
     () => [...items].sort((a, b) => new Date(b.fecha_pedido).getTime() - new Date(a.fecha_pedido).getTime()),
     [items]
   )
-
-  const { paginatedItems, currentPage, totalPages, totalItems, setCurrentPage } = usePagination(sortedItems, limit)
 
   if (loading) {
     return (
@@ -192,7 +189,7 @@ export default function PedidosPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {paginatedItems.map((item) => {
+                {sortedItems.map((item) => {
                   const transitions = ALLOWED_TRANSITIONS[item.estado_nombre] ?? []
                   const availableTransitions = transitions.filter((t) =>
                     t.roles.some((r) => userRoles.includes(r))
@@ -251,34 +248,13 @@ export default function PedidosPage() {
               </tbody>
             </table>
           </div>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between p-4 border-t border-border">
-              <span className="text-sm text-muted-foreground">Total: {totalItems} pedidos</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                  aria-label="Página anterior"
-                >
-                  Anterior
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  Pág. {currentPage} de {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  aria-label="Página siguiente"
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={total}
+            itemsPerPage={limit}
+            onPageChange={setPage}
+          />
         </Card>
       )}
     </PageContainer>

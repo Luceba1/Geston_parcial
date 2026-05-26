@@ -6,6 +6,12 @@ import { Card } from '../shared/ui/Card'
 import { useUIStore } from '../stores/uiStore'
 import { useCartStore } from '../stores'
 
+interface AlergenoInfo {
+  id: number
+  nombre: string
+  icono?: string | null
+}
+
 interface CategoriaInfo {
   id: number
   nombre: string
@@ -15,7 +21,7 @@ interface IngredienteInfo {
   id: number
   nombre: string
   cantidad: number
-  alergeno: boolean
+  alergenos: AlergenoInfo[]
 }
 
 interface ProductoDetalle {
@@ -70,7 +76,14 @@ export default function ProductoDetallePage() {
     )
   }
 
-  const alergenos = product.ingredientes.filter((i) => i.alergeno)
+  // Collect unique allergens across all ingredients
+  const alergenosUnicos = Array.from(
+    new Map(
+      product.ingredientes
+        .flatMap((i) => i.alergenos)
+        .map((a) => [a.id, a])
+    ).values()
+  )
   const outOfStock = product.stock <= 0
 
   return (
@@ -175,7 +188,7 @@ export default function ProductoDetallePage() {
           {product.ingredientes.length > 0 && (
             <div className="mb-6">
               <h3 className="text-sm font-semibold text-foreground mb-2">
-                Ingredientes {product.ingredientes.some(i => i.alergeno) && <span className="text-xs text-yellow-600 font-normal">(desmarcá para excluir)</span>}
+                Ingredientes {product.ingredientes.some(i => i.alergenos.length > 0) && <span className="text-xs text-yellow-600 font-normal">(desmarcá para excluir)</span>}
               </h3>
               <div className="space-y-2">
                 {product.ingredientes.map((ing) => {
@@ -203,8 +216,14 @@ export default function ProductoDetallePage() {
                         {ing.nombre}
                         {ing.cantidad > 0 && <span className="text-muted-foreground ml-1">({ing.cantidad})</span>}
                       </span>
-                      {ing.alergeno && (
-                        <span className="text-xs bg-amber-bg text-amber-text px-2 py-0.5 rounded-full">⚠ alérgeno</span>
+                      {ing.alergenos.length > 0 && (
+                        <div className="flex gap-1">
+                          {ing.alergenos.map((al) => (
+                            <span key={al.id} className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">
+                              {al.nombre}
+                            </span>
+                          ))}
+                        </div>
                       )}
                     </label>
                   )
@@ -214,11 +233,11 @@ export default function ProductoDetallePage() {
           )}
 
           {/* Allergens warning */}
-          {alergenos.length > 0 && (
+          {alergenosUnicos.length > 0 && (
             <Card variant="outlined" className="p-4 mb-6 bg-amber-bg border-amber-bg/50">
               <h3 className="text-sm font-semibold text-amber-text mb-1">Información de alérgenos</h3>
               <p className="text-xs text-amber-text/80">
-                Este producto contiene: {alergenos.map((a) => a.nombre).join(', ')}.
+                Este producto contiene: {alergenosUnicos.map((a) => a.nombre).join(', ')}.
                 Puede contener trazas de otros alérgenos.
               </p>
             </Card>

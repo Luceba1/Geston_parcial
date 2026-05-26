@@ -1,11 +1,14 @@
+import asyncio
 from typing import Optional, List, Tuple
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
+from sqlalchemy.orm import selectinload
 from datetime import datetime
 
 from features.orders.models import Pedido, DetallePedido, HistorialEstadoPedido, EstadoPedido
 from features.orders.schemas import PedidoCreateRequest, EstadoUpdateRequest
 from features.products.models import Producto
 from features.addresses.models import DireccionEntrega
+from features.kitchen.event_manager import event_manager
 from core.exceptions import NotFoundException, ForbiddenException, ValidationException
 
 # FSM: Define transitions allowed for each state
@@ -20,11 +23,8 @@ ALLOWED_TRANSITIONS: dict[str, list[tuple[str, list[str]]]] = {
         ("cancelado", ["admin"]),
     ],
     "en_preparacion": [
-        ("listo_para_entrega", ["admin", "cocinero"]),
+        ("en_camino", ["admin", "cocinero"]),
         ("cancelado", ["admin"]),
-    ],
-    "listo_para_entrega": [
-        ("en_camino", ["admin", "repartidor"]),
     ],
     "en_camino": [
         ("entregado", ["admin", "repartidor"]),
@@ -134,6 +134,7 @@ class OrderService:
         historial = HistorialEstadoPedido(
             pedido_id=pedido.id,
             estado_id=estado_pendiente.id,
+            usuario_id=usuario_id,
             notas="Pedido creado",
         )
         self._session.add(historial)
@@ -146,27 +147,30 @@ class OrderService:
         """Lista pedidos del usuario autenticado con paginación."""
         offset = (page - 1) * limit
 
-        query = select(Pedido).where(
+        query = select(Pedido).options(
+            selectinload(Pedido.detalles),
+            selectinload(Pedido.historial_estados).selectinload(HistorialEstadoPedido.estado),
+        ).where(
             Pedido.usuario_id == usuario_id
         ).order_by(Pedido.fecha_pedido.desc()).offset(offset).limit(limit)
 
-        count_query = select(Pedido).where(Pedido.usuario_id == usuario_id)
-
         items = list(self._session.exec(query).all())
-        total = len(list(self._session.exec(count_query).all()))
+        total = self._session.exec(select(func.count()).select_from(Pedido).where(Pedido.usuario_id == usuario_id)).one()
         return items, total
 
     def list_all(self, page: int = 1, limit: int = 20) -> Tuple[List[Pedido], int]:
         """Lista todos los pedidos (admin/gestor) con paginación."""
         offset = (page - 1) * limit
 
-        query = select(Pedido).order_by(
+        query = select(Pedido).options(
+            selectinload(Pedido.detalles),
+            selectinload(Pedido.historial_estados).selectinload(HistorialEstadoPedido.estado),
+        ).order_by(
             Pedido.fecha_pedido.desc()
         ).offset(offset).limit(limit)
 
-        count_query = select(Pedido)
         items = list(self._session.exec(query).all())
-        total = len(list(self._session.exec(count_query).all()))
+        total = self._session.exec(select(func.count()).select_from(Pedido)).one()
         return items, total
 
     def get_by_id(self, pedido_id: int, usuario_id: Optional[int] = None) -> Pedido:
@@ -199,6 +203,7 @@ class OrderService:
         # --- Caso especial: cliente cancelando su propio pedido pendiente ---
         # El cliente puede cancelar solo si es su pedido y está en "pendiente"
         es_cliente = "cliente" in current_user_roles
+        es_cocinero = "cocinero" in current_user_roles
         es_admin = "admin" in current_user_roles
         es_su_pedido = pedido.usuario_id == current_user_id
 
@@ -208,7 +213,20 @@ class OrderService:
         elif estado_destino.nombre == "cancelado" and not es_admin:
             raise ForbiddenException("Solo un administrador puede cancelar pedidos en este estado")
 
-        # --- Verificar transición permitida ---
+        # --- RN-CO03: Validación de transiciones para rol cocinero ---
+        # El cocinero solo puede ejecutar: confirmado→en_preparacion y en_preparacion→en_camino
+        if es_cocinero and not es_admin:
+            cocinero_allowed = [
+                ("confirmado", "en_preparacion"),
+                ("en_preparacion", "en_camino"),
+            ]
+            if (estado_actual.nombre, estado_destino.nombre) not in cocinero_allowed:
+                raise ForbiddenException(
+                    "El rol cocinero solo puede tomar pedidos (confirmado→en_preparacion) "
+                    "y marcarlos terminados (en_preparacion→en_camino)."
+                )
+
+        # --- Verificar transición permitida (FSM general) ---
         transitions = ALLOWED_TRANSITIONS.get(estado_actual.nombre, [])
         allowed = False
         for next_state, roles in transitions:
@@ -231,17 +249,42 @@ class OrderService:
         # Actualizar estado
         pedido.estado_id = estado_destino.id
 
-        # Registrar historial
+        # Registrar historial (con usuario_id para auditoría, RN-CO04)
         historial = HistorialEstadoPedido(
             pedido_id=pedido.id,
             estado_id=estado_destino.id,
+            usuario_id=current_user_id,
             notas=data.notas or f"Cambio de estado: {estado_actual.nombre} → {estado_destino.nombre}",
         )
         self._session.add(historial)
 
         self._session.flush()
         self._session.refresh(pedido)
+
+        # Publicar evento SSE (best-effort, fire-and-forget)
+        self._publish_evento_cocina(estado_actual.nombre, estado_destino.nombre, pedido)
+
         return pedido
+
+    def _publish_evento_cocina(self, estado_desde: str, estado_hasta: str, pedido: Pedido) -> None:
+        """Publica evento SSE según la transición de estado, si corresponde a cocina."""
+        event_map = {
+            ("pendiente", "confirmado"): "PEDIDO_CONFIRMADO",
+            ("confirmado", "en_preparacion"): "PEDIDO_EN_PREPARACION",
+            ("en_preparacion", "en_camino"): "PEDIDO_EN_CAMINO",
+            ("confirmado", "cancelado"): "PEDIDO_CANCELADO",
+            ("en_preparacion", "cancelado"): "PEDIDO_CANCELADO",
+        }
+        event_type = event_map.get((estado_desde, estado_hasta))
+        if event_type:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(
+                        event_manager.publish(event_type, {"pedido_id": pedido.id})
+                    )
+            except RuntimeError:
+                pass  # No event loop available, skip publish
 
     def _build_response(self, pedido: Pedido) -> dict:
         """Construye un dict con todos los datos del pedido (para el response model personalizado)."""
@@ -262,11 +305,11 @@ class OrderService:
 
         historial = []
         for h in (pedido.historial_estados or []):
-            h_estado = self._get_estado_by_id(h.estado_id)
             historial.append({
                 "id": h.id,
                 "estado_id": h.estado_id,
-                "estado_nombre": h_estado.nombre,
+                "estado_nombre": h.estado.nombre,
+                "usuario_id": h.usuario_id,
                 "fecha_cambio": h.fecha_cambio,
                 "notas": h.notas,
             })

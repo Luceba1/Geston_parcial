@@ -1,6 +1,7 @@
 from typing import Optional
 from datetime import datetime
 from sqlmodel import SQLModel, Field, Relationship
+from sqlalchemy import BigInteger
 
 
 class FormaPago(SQLModel, table=True):
@@ -27,8 +28,8 @@ class Pago(SQLModel, table=True):
     # MercadoPago tracking
     mp_preference_id: Optional[str] = Field(default=None, max_length=255)
     mp_init_point: Optional[str] = Field(default=None, max_length=500)
-    mp_payment_id: Optional[int] = Field(default=None)
-    mp_merchant_order_id: Optional[int] = Field(default=None)
+    mp_payment_id: Optional[int] = Field(default=None, sa_type=BigInteger)
+    mp_merchant_order_id: Optional[int] = Field(default=None, sa_type=BigInteger)
     mp_status: Optional[str] = Field(default=None, max_length=50)
     mp_status_detail: Optional[str] = Field(default=None, max_length=100)
 

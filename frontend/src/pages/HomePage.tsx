@@ -246,7 +246,15 @@ function Footer() {
 
 export default function HomePage() {
   const { isAuthenticated, user } = useAuthStore()
+  const navigate = useNavigate()
   const isAdmin = isAuthenticated && user?.roles?.includes('admin')
+  const isCocinero = isAuthenticated && user?.roles?.includes('cocinero')
+
+  // Si es solo cocinero (no admin), redirigir directo a la cocina
+  if (isCocinero && !isAdmin) {
+    navigate('/cocina', { replace: true })
+    return null
+  }
 
   if (isAdmin) {
     return (

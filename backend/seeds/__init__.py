@@ -4,7 +4,8 @@ from features.auth.models import Rol, Usuario, UsuarioRol
 from features.orders.models import EstadoPedido
 from features.payments.models import FormaPago
 from features.categories.models import Categoria
-from features.ingredients.models import Ingrediente
+from features.ingredients.models import Ingrediente, IngredienteAlergeno
+from features.allergens.models import Alergeno
 from features.products.models import Producto, ProductoCategoria, ProductoIngrediente
 from core.security import get_password_hash
 
@@ -37,10 +38,9 @@ def seed_estados_pedido():
         {"nombre": "pendiente", "descripcion": "Pedido recibido, esperando confirmacion", "orden": 1},
         {"nombre": "confirmado", "descripcion": "Pedido confirmado por el restaurante", "orden": 2},
         {"nombre": "en_preparacion", "descripcion": "Pedido en cocina", "orden": 3},
-        {"nombre": "listo_para_entrega", "descripcion": "Pedido listo para ser recogido/entregado", "orden": 4},
-        {"nombre": "en_camino", "descripcion": "Pedido en camino (repartidor)", "orden": 5},
-        {"nombre": "entregado", "descripcion": "Pedido entregado al cliente", "orden": 6},
-        {"nombre": "cancelado", "descripcion": "Pedido cancelado", "orden": 7},
+        {"nombre": "en_camino", "descripcion": "Pedido en camino (repartidor)", "orden": 4},
+        {"nombre": "entregado", "descripcion": "Pedido entregado al cliente", "orden": 5},
+        {"nombre": "cancelado", "descripcion": "Pedido cancelado", "orden": 6},
     ]
     
     with get_session() as session:
@@ -112,23 +112,75 @@ def seed_categorias():
     print("[OK] Categorias seeded successfully!")
 
 
-def seed_ingredientes():
-    """Create example ingredients with allergens"""
-    ingredientes = [
-        {"nombre": "Harina", "unidad_medida": "gr", "alergenos": "gluten"},
-        {"nombre": "Leche", "unidad_medida": "ml", "alergenos": "lacteos"},
-        {"nombre": "Huevo", "unidad_medida": "ud", "alergenos": "huevo"},
-        {"nombre": "Queso", "unidad_medida": "gr", "alergenos": "lacteos"},
-        {"nombre": "Carne", "unidad_medida": "gr"},
-        {"nombre": "Pollo", "unidad_medida": "gr"},
-        {"nombre": "Lechuga", "unidad_medida": "gr"},
-        {"nombre": "Tomate", "unidad_medida": "ud"},
-        {"nombre": "Pan", "unidad_medida": "ud", "alergenos": "gluten"},
-        {"nombre": "Chocolate", "unidad_medida": "gr", "alergenos": "lacteos"},
+def seed_alergenos():
+    """Create default allergens and link to ingredients."""
+    ALERGENOS_POR_DEFECTO = [
+        "Lácteos", "Huevo", "Gluten", "Maní", "Frutos secos",
+        "Soja", "Pescado", "Sésamo", "Mostaza", "Sulfitos",
     ]
 
+    ALERGENO_MAP = {
+        "gluten": "Gluten",
+        "lacteos": "Lácteos",
+        "huevo": "Huevo",
+    }
+
     with get_session() as session:
-        for ing_data in ingredientes:
+        # Create allergens
+        alergeno_map = {}
+        for nombre in ALERGENOS_POR_DEFECTO:
+            existing = session.query(Alergeno).filter_by(nombre=nombre).first()
+            if not existing:
+                alergeno = Alergeno(nombre=nombre, activo=True)
+                session.add(alergeno)
+                session.flush()
+                alergeno_map[nombre] = alergeno.id
+                print(f"  -> Created allergen: {nombre}")
+            else:
+                alergeno_map[nombre] = existing.id
+                print(f"  -> Allergen already exists: {nombre}")
+
+        # Link existing ingredients to allergens based on their alergenos VARCHAR
+        map_name_to_id = {k.lower(): v for k, v in alergeno_map.items()}
+        for seed_name, alergeno_name in ALERGENO_MAP.items():
+            alergeno_id = map_name_to_id.get(alergeno_name.lower())
+            if not alergeno_id:
+                continue
+            for ing_data in INGREDIENTES_SEED:
+                if ing_data.get("alergenos", "").lower() == seed_name:
+                    ingrediente = session.query(Ingrediente).filter_by(nombre=ing_data["nombre"]).first()
+                    if ingrediente:
+                        existing_rel = session.query(IngredienteAlergeno).filter_by(
+                            ingrediente_id=ingrediente.id,
+                            alergeno_id=alergeno_id,
+                        ).first()
+                        if not existing_rel:
+                            session.add(IngredienteAlergeno(
+                                ingrediente_id=ingrediente.id,
+                                alergeno_id=alergeno_id,
+                            ))
+        session.commit()
+    print("[OK] Alergenos seeded and linked successfully!")
+
+
+INGREDIENTES_SEED = [
+    {"nombre": "Harina", "unidad_medida": "gr", "alergenos": "gluten"},
+    {"nombre": "Leche", "unidad_medida": "ml", "alergenos": "lacteos"},
+    {"nombre": "Huevo", "unidad_medida": "ud", "alergenos": "huevo"},
+    {"nombre": "Queso", "unidad_medida": "gr", "alergenos": "lacteos"},
+    {"nombre": "Carne", "unidad_medida": "gr"},
+    {"nombre": "Pollo", "unidad_medida": "gr"},
+    {"nombre": "Lechuga", "unidad_medida": "gr"},
+    {"nombre": "Tomate", "unidad_medida": "ud"},
+    {"nombre": "Pan", "unidad_medida": "ud", "alergenos": "gluten"},
+    {"nombre": "Chocolate", "unidad_medida": "gr", "alergenos": "lacteos"},
+]
+
+
+def seed_ingredientes():
+    """Create example ingredients with allergens"""
+    with get_session() as session:
+        for ing_data in INGREDIENTES_SEED:
             existing = session.query(Ingrediente).filter_by(nombre=ing_data["nombre"]).first()
             if not existing:
                 ingrediente = Ingrediente(**ing_data)
@@ -258,6 +310,40 @@ def seed_usuario_admin():
     print("[OK] Admin user seeded successfully!")
 
 
+def seed_usuario_cocina():
+    """Create default cocinero user"""
+    cocina_data = {
+        "nombre": "Cocinero",
+        "email": "cocina@foodstore.com",
+        "password": "cocina123",
+    }
+
+    with get_session() as session:
+        existing = session.query(Usuario).filter_by(email=cocina_data["email"]).first()
+        if existing:
+            print(f"  -> Cocinero user already exists: {cocina_data['email']}")
+        else:
+            cocinero_role = session.query(Rol).filter_by(nombre="cocinero").first()
+            if not cocinero_role:
+                print("  -> [ERROR] Cocinero role not found. Run seed_roles first.")
+                return
+
+            hashed_password = get_password_hash(cocina_data["password"])
+            usuario = Usuario(
+                nombre=cocina_data["nombre"],
+                email=cocina_data["email"],
+                hashed_password=hashed_password,
+            )
+            session.add(usuario)
+            session.flush()
+
+            usuario_rol = UsuarioRol(usuario_id=usuario.id, rol_id=cocinero_role.id)
+            session.add(usuario_rol)
+            print(f"  -> Created cocinero user: {cocina_data['email']}")
+        session.commit()
+    print("[OK] Cocinero user seeded successfully!")
+
+
 def run_all_seeds():
     """Run all seed functions"""
     print("Starting database seeding...")
@@ -273,14 +359,20 @@ def run_all_seeds():
     print("\n4. Seeding categorias...")
     seed_categorias()
 
-    print("\n5. Seeding ingredientes...")
+    print("\n5. Seeding alérgenos...")
+    seed_alergenos()
+
+    print("\n6. Seeding ingredientes...")
     seed_ingredientes()
 
-    print("\n6. Seeding productos...")
+    print("\n7. Seeding productos...")
     seed_productos()
 
-    print("\n7. Seeding admin user...")
+    print("\n8. Seeding admin user...")
     seed_usuario_admin()
+
+    print("\n9. Seeding cocinero user...")
+    seed_usuario_cocina()
 
     print("\n[OK] All seeds completed!")
 

@@ -1,5 +1,7 @@
+import os
 import logging
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse
 
 from features.auth.dependencies import get_current_user
 from features.auth.models import Usuario
@@ -43,14 +45,16 @@ async def webhook_pago(
     Recibe notificaciones de pago y actualiza el estado del pedido.
     """
     try:
-        # MP envía el webhook como form data o JSON
+        # MP envía el webhook como form data, JSON, o query params
+        query_params = dict(request.query_params)
+
         if request.headers.get("content-type", "").startswith("application/json"):
             data = await request.json()
         else:
             form_data = await request.form()
             data = dict(form_data)
 
-        result = service.procesar_webhook(data)
+        result = service.procesar_webhook(data, query_params=query_params)
         return result
     except Exception as e:
         logger.exception("Error en webhook MP")
@@ -96,9 +100,9 @@ async def confirmar_pago(
     ]
     return service.confirmar_pago(
         pedido_id=data.pedido_id,
-        payment_id=data.payment_id,
         usuario_id=current_user.id,
         es_admin=es_admin,
+        payment_id=data.payment_id,
     )
 
 
@@ -116,3 +120,26 @@ async def reintentar_pago(
         pedido_id=pedido_id,
         usuario_id=current_user.id,
     )
+
+
+@router.get("/redirect/{pedido_id}/{status}")
+async def redirect_after_pago(
+    pedido_id: int,
+    status: str,
+    request: Request,
+):
+    """
+    Redirige al usuario al frontend después de pagar en MercadoPago.
+    MP requiere HTTPS en back_urls con auto_return.
+    Pasa los query params de MP (payment_id, etc.) al frontend para que
+    PagoExitosoPage pueda confirmar el pago.
+    """
+    frontend_url = os.getenv("VITE_FRONTEND_URL", "http://localhost:5174")
+
+    # Preservar los query params que MP adjunta en la redirect (payment_id, etc.)
+    qs = request.url.query
+    url = f"{frontend_url}/orders/{pedido_id}/{status}"
+    if qs:
+        url += f"?{qs}"
+
+    return RedirectResponse(url=url)

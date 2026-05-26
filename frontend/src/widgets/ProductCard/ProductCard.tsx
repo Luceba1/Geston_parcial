@@ -13,7 +13,7 @@ export interface ProductCardItem {
   stock: number
   tiempo_preparacion_minutos: number
   categorias: { id: number; nombre: string }[]
-  ingredientes: { id: number; nombre: string; cantidad: number; alergeno: boolean }[]
+  ingredientes: { id: number; nombre: string; cantidad: number; alergenos: { id: number; nombre: string }[] }[]
 }
 
 interface ProductCardProps {
@@ -80,7 +80,7 @@ export function ProductCard({ product }: ProductCardProps) {
         )}
 
         {/* Allergens warning */}
-        {product.ingredientes.some((i) => i.alergeno) && (
+        {product.ingredientes.some((i) => i.alergenos.length > 0) && (
           <div className="text-xs text-amber-text mb-2">
             ⚠ Contiene alérgenos
           </div>

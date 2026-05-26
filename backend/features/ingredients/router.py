@@ -26,7 +26,7 @@ async def list_ingredientes(
     skip = (page - 1) * limit
     items, total = service.list(skip=skip, limit=limit, solo_disponibles=solo_disponibles)
     return {
-        "items": [IngredienteResponse.model_validate(i) for i in items],
+        "items": [IngredienteResponse.model_validate_with_alergenos(i) for i in items],
         "total": total,
         "page": page,
         "limit": limit,
@@ -39,7 +39,8 @@ async def get_ingrediente(
     service: IngredienteService = Depends(get_ingrediente_service),
 ):
     """Obtiene un ingrediente por ID."""
-    return service.get_by_id(ingrediente_id)
+    item = service.get_by_id(ingrediente_id)
+    return IngredienteResponse.model_validate_with_alergenos(item)
 
 
 @router.post("/", response_model=IngredienteResponse, status_code=status.HTTP_201_CREATED)
@@ -49,7 +50,8 @@ async def create_ingrediente(
     _: Usuario = Depends(require_role("admin")),
 ):
     """Crea un nuevo ingrediente. Requiere rol ADMIN."""
-    return service.create(data)
+    item = service.create(data)
+    return IngredienteResponse.model_validate_with_alergenos(item)
 
 
 @router.put("/{ingrediente_id}", response_model=IngredienteResponse)
@@ -60,7 +62,8 @@ async def update_ingrediente(
     _: Usuario = Depends(require_role("admin")),
 ):
     """Actualiza un ingrediente. Requiere rol ADMIN."""
-    return service.update(ingrediente_id, data)
+    item = service.update(ingrediente_id, data)
+    return IngredienteResponse.model_validate_with_alergenos(item)
 
 
 @router.delete("/{ingrediente_id}", status_code=status.HTTP_204_NO_CONTENT)

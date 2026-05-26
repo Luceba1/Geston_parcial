@@ -25,7 +25,7 @@ async def list_catalogo_publico(
     
     - `categoria_id`: filtrar por categoría
     - `busqueda`: buscar por nombre (case-insensitive)
-    - `excluir_alergenos`: IDs de ingredientes a excluir (separados por coma)
+    - `excluir_alergenos`: IDs de alérgenos a excluir (separados por coma)
     """
     return service.list_public(
         page=page,

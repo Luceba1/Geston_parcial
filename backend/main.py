@@ -51,6 +51,13 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Middleware para evitar el interstitial de ngrok-free en todas las responses
+    @app.middleware("http")
+    async def add_ngrok_skip_warning(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["ngrok-skip-browser-warning"] = "true"
+        return response
+
     # Exception handlers (RFC 7807 format)
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -92,6 +99,12 @@ def create_app() -> FastAPI:
 
     from features.payments.router import router as pagos_router
     app.include_router(pagos_router, tags=["pagos"])
+
+    from features.kitchen.router import router as cocina_router
+    app.include_router(cocina_router, prefix="/api/v1/cocina", tags=["cocina"])
+
+    from features.allergens.router import router as alergenos_router
+    app.include_router(alergenos_router, prefix="/api/v1/alergenos", tags=["alérgenos"])
 
     
     # Registrar endpoint de prueba en la raíz para verificar conexión

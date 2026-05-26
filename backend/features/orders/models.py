@@ -55,6 +55,7 @@ class HistorialEstadoPedido(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     pedido_id: int = Field(foreign_key="pedidos.id")
     estado_id: int = Field(foreign_key="estados_pedido.id")
+    usuario_id: Optional[int] = Field(default=None, foreign_key="usuarios.id", nullable=True)
     fecha_cambio: datetime = Field(default_factory=datetime.utcnow)
     notas: Optional[str] = Field(default=None, max_length=1000)
     

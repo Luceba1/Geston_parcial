@@ -16,13 +16,15 @@ interface NavItem {
 const allNavItems: NavItem[] = [
   { label: 'Inicio', path: '/', icon: '🏠' },
   { label: 'Catálogo', path: '/catalogo', icon: '📦' },
-  { label: 'Carrito', path: '/cart', icon: '🛒' },
+  { label: 'Carrito', path: '/cart', icon: '🛒', roles: ['cliente', 'admin'] },
   { label: 'Mis Pedidos', path: '/orders', icon: '📋', roles: ['cliente', 'admin'] },
   { label: 'Mi Perfil', path: '/perfil', icon: '👤', roles: ['cliente', 'admin', 'cocinero', 'repartidor'] },
   { label: 'Mis Direcciones', path: '/direcciones', icon: '📍', roles: ['cliente', 'admin'] },
-  { label: 'Productos', path: '/productos', icon: '📦', roles: ['cocinero', 'admin'] },
-  { label: 'Categorías', path: '/categorias', icon: '📁', roles: ['cocinero', 'admin'] },
+  { label: 'Cocina', path: '/cocina', icon: '👨‍🍳', roles: ['cocinero', 'admin', 'pedidos'] },
+  { label: 'Productos', path: '/productos', icon: '📦', roles: ['admin'] },
+  { label: 'Categorías', path: '/categorias', icon: '📁', roles: ['admin'] },
   { label: 'Ingredientes', path: '/ingredientes', icon: '🧂', roles: ['admin'] },
+  { label: 'Alérgenos', path: '/admin/alergenos', icon: '⚠️', roles: ['admin'] },
   { label: 'Panel Pedidos', path: '/pedidos', icon: '📋', roles: ['repartidor', 'admin'] },
   { label: 'Usuarios', path: '/admin/usuarios', icon: '👥', roles: ['admin'] },
   { label: 'Dashboard', path: '/admin', icon: '📊', roles: ['admin'] },
@@ -103,6 +105,8 @@ export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
+  const isCocinero = user?.roles?.includes('cocinero') && !user?.roles?.includes('admin')
+  const homePath = isCocinero ? '/cocina' : '/'
   const navItems = getFilteredNavItems(user?.roles)
 
   const handleLogout = useCallback(() => {
@@ -140,7 +144,7 @@ export function Layout() {
               </svg>
             </button>
 
-            <Link to="/" className="text-xl font-bold text-primary whitespace-nowrap">
+            <Link to={homePath} className="text-xl font-bold text-primary whitespace-nowrap">
               FoodStore
             </Link>
           </div>
@@ -209,11 +213,15 @@ export function Layout() {
 
           <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
             {navItems.map((item) => {
-              const isActive = location.pathname === item.path
+              // Si es cocinero, "Inicio" va a /cocina
+              const itemPath = item.label === 'Inicio' && isCocinero ? '/cocina' : item.path
+              const isActive = itemPath === '/'
+                ? location.pathname === '/'
+                : location.pathname === itemPath || location.pathname.startsWith(itemPath + '/')
               return (
                 <Link
                   key={item.path}
-                  to={item.path}
+                  to={itemPath}
                   onClick={() => {
                     setSidebarOpen(false)
                   }}

@@ -23,7 +23,8 @@ if config.config_file_name is not None:
 from sqlmodel import SQLModel
 from features.auth.models import Rol, Usuario, UsuarioRol, RefreshToken
 from features.categories.models import Categoria
-from features.ingredients.models import Ingrediente
+from features.ingredients.models import Ingrediente, IngredienteAlergeno
+from features.allergens.models import Alergeno
 from features.products.models import Producto, ProductoCategoria, ProductoIngrediente
 from features.addresses.models import DireccionEntrega
 from features.orders.models import EstadoPedido, Pedido, DetallePedido, HistorialEstadoPedido

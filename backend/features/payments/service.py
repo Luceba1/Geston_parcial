@@ -59,12 +59,8 @@ def _crear_preferencia_mp(monto: float, titulo: str, idempotency_key: str,
                 "MP_WEBHOOK_URL",
                 f"{os.getenv('VITE_API_URL', 'http://localhost:8000')}/api/v1/pagos/webhook"
             ),
+            "auto_return": "approved",
         }
-        # NOTA: auto_return: "approved" requiere HTTPS en back_urls.
-        # Con credenciales APP_USR (producción), MP rechaza URLs HTTP.
-        # En desarrollo usamos HTTP, así que lo omitimos.
-        # En producción con HTTPS, agregar:
-        #   "auto_return": "approved",
 
         result = sdk.preference().create(preference_data)
 
@@ -82,6 +78,47 @@ def _crear_preferencia_mp(monto: float, titulo: str, idempotency_key: str,
         raise RuntimeError("El paquete 'mercadopago' no está instalado. Ejecutá: pip install mercadopago")
     except Exception as e:
         logger.exception("Error inesperado al crear preferencia MP")
+        raise RuntimeError(f"Error de conexión con MercadoPago: {str(e)}")
+
+
+def _buscar_pagos_por_external_ref(external_ref: str) -> list[dict]:
+    """
+    Busca pagos en MercadoPago por external_reference (pedido_id).
+    Útil cuando se pierde el payment_id en el redirect por ngrok-free.
+    Retorna una lista de pagos encontrados, ordenados por fecha descendente.
+    """
+    access_token = _get_mp_access_token()
+    if not access_token:
+        raise RuntimeError("MercadoPago no está configurado")
+
+    try:
+        import mercadopago
+        sdk = mercadopago.SDK(access_token)
+        result = sdk.payment().search({
+            "external_reference": external_ref,
+            "sort": "date_created",
+            "criteria": "desc",
+        })
+
+        if result.get("status") != 200:
+            logger.error("Error buscando pagos por external_ref %s: %s", external_ref, result)
+            raise RuntimeError(f"Error al buscar pagos en MercadoPago: {external_ref}")
+
+        results = result.get("response", {}).get("results", [])
+        return [
+            {
+                "mp_payment_id": p.get("id"),
+                "mp_status": p.get("status"),
+                "mp_status_detail": p.get("status_detail"),
+                "mp_merchant_order_id": p.get("merchant_order_id"),
+                "date_created": p.get("date_created"),
+            }
+            for p in results
+        ]
+    except ImportError:
+        raise RuntimeError("Paquete 'mercadopago' no instalado")
+    except Exception as e:
+        logger.exception("Error buscando pagos por external_ref %s", external_ref)
         raise RuntimeError(f"Error de conexión con MercadoPago: {str(e)}")
 
 
@@ -163,10 +200,11 @@ class PaymentService:
 
         # Crear preferencia en MP
         titulo = f"Pedido #{pedido_id} - FoodStore"
+        ngrok_url = os.getenv('NGROK_URL', 'http://localhost:8000')
         back_urls = {
-            "success": f"{os.getenv('VITE_FRONTEND_URL', 'http://localhost:5173')}/orders/{pedido_id}/success",
-            "failure": f"{os.getenv('VITE_FRONTEND_URL', 'http://localhost:5173')}/orders/{pedido_id}/failure",
-            "pending": f"{os.getenv('VITE_FRONTEND_URL', 'http://localhost:5173')}/orders/{pedido_id}/pending",
+            "success": f"{ngrok_url}/api/v1/pagos/redirect/{pedido_id}/success",
+            "failure": f"{ngrok_url}/api/v1/pagos/redirect/{pedido_id}/failure",
+            "pending": f"{ngrok_url}/api/v1/pagos/redirect/{pedido_id}/pending",
         }
 
         try:
@@ -203,18 +241,35 @@ class PaymentService:
 
     # ── Webhook ───────────────────────────────────────────────
 
-    def procesar_webhook(self, data: dict) -> dict:
+    def procesar_webhook(self, data: dict, query_params: Optional[dict] = None) -> dict:
         """
         Procesa un webhook IPN de MercadoPago.
-        Según la documentación de MP, el webhook puede venir en distintos formatos.
+        Según la documentación de MP, el webhook puede venir en distintos formatos:
+        - JSON body: {"type": "payment", "data": {"id": 123}}
+        - Form data: type=payment&data.id=123
+        - Query params: ?id=123&topic=payment (common for merchant_order)
+        
+        Args:
+            data: Datos del body (JSON o form)
+            query_params: Query params de la URL (para webhooks que llegan solo con query string)
         """
-        logger.info("Webhook recibido: %s", data)
+        logger.info("Webhook recibido: data=%s, query_params=%s", data, query_params or {})
+
+        # Si MP mandó data solo en query params, usarlos como fallback
+        if not data and query_params:
+            data = query_params
 
         # Extraer type y action del webhook
         topic = data.get("type") or data.get("topic")
         action = data.get("action")
         data_id = data.get("data_id") or data.get("data", {}).get("id")
         payment_id = data.get("id")  # Algunos formatos lo mandan directo
+        
+        # Fallback a query params si el body no trajo nada
+        if not data_id and query_params:
+            data_id = query_params.get("data.id") or query_params.get("id")
+        if not topic and query_params:
+            topic = query_params.get("topic") or query_params.get("type")
 
         # Si no hay payment_id, intentar con data_id
         pago_mp_id = payment_id or data_id
@@ -299,6 +354,10 @@ class PaymentService:
 
         except Exception as e:
             logger.exception("Error procesando webhook MP")
+            try:
+                self._session.rollback()
+            except:
+                pass
             # Siempre retornar 200 para MP (evita bloqueo de IP)
             return {"status": "error", "reason": str(e)}
 
@@ -330,12 +389,15 @@ class PaymentService:
 
     # ── Confirmar post-redirect ───────────────────────────────
 
-    def confirmar_pago(self, pedido_id: int, payment_id: int,
-                       usuario_id: int, es_admin: bool = False) -> PagoEstadoResponse:
+    def confirmar_pago(self, pedido_id: int, usuario_id: int,
+                       es_admin: bool = False, payment_id: Optional[int] = None) -> PagoEstadoResponse:
         """
         Confirma/verifica un pago después del redirect desde MP.
         Consulta el estado REAL en MP y actualiza la BD.
-        Esto reemplaza la necesidad del webhook en desarrollo local.
+
+        Si payment_id no se provee (se perdió en el redirect por ngrok-free),
+        busca el pago en MP por external_reference (pedido_id).
+        Esto hace el flujo robusto aunque el frontend no reciba query params.
         """
         # Validar pedido
         pedido = self._session.get(Pedido, pedido_id)
@@ -345,9 +407,45 @@ class PaymentService:
         if not es_admin and pedido.usuario_id != usuario_id:
             raise ForbiddenException("El pedido no pertenece al usuario autenticado")
 
-        # Consultar estado real en MP
+        # ── Resolver payment_id ─────────────────────────────
+        # Si no vino, buscar el último pago de MP por external_reference
+        resolved_payment_id = payment_id
+
+        if not resolved_payment_id:
+            logger.info(
+                "confirmar_pago sin payment_id para pedido %s — "
+                "buscando en MP por external_reference", pedido_id
+            )
+            try:
+                mp_pagos = _buscar_pagos_por_external_ref(str(pedido_id))
+            except RuntimeError as e:
+                raise BadRequestException(
+                    f"No se pudo buscar el pago en MercadoPago: {str(e)}. "
+                    "Si estás en desarrollo, asegurate de tener MP_ACCESS_TOKEN configurado."
+                )
+
+            if not mp_pagos:
+                # Sin payment_id y sin resultados de MP — no podemos confirmar
+                logger.warning(
+                    "No se encontraron pagos en MP para pedido %s", pedido_id
+                )
+                # Devolver el estado actual de BD si existe
+                pago_local = self._uow.pagos.get_ultimo_by_pedido(pedido_id)
+                return PagoEstadoResponse(
+                    estado=pago_local.estado if pago_local else None,
+                    disponible=True,
+                    pago=PagoResponse.model_validate(pago_local) if pago_local else None,
+                )
+
+            # Tomar el pago más reciente
+            resolved_payment_id = mp_pagos[0]["mp_payment_id"]
+            logger.info(
+                "Payment_id resuelto por external_reference: %s", resolved_payment_id
+            )
+
+        # ── Consultar estado real en MP ─────────────────────
         try:
-            mp_info = _consultar_pago_mp(payment_id)
+            mp_info = _consultar_pago_mp(resolved_payment_id)
         except RuntimeError as e:
             raise BadRequestException(f"Error al consultar pago en MercadoPago: {str(e)}")
 
@@ -365,9 +463,9 @@ class PaymentService:
             logger.warning("Estado MP no mapeado en confirmación: %s", estado_mp)
             nuevo_estado = "pendiente"
 
-        # Buscar el pago en BD: primero por mp_payment_id, después por pedido
+        # ── Buscar o crear el Pago en BD ────────────────────
         pago = self._session.exec(
-            select(Pago).where(Pago.mp_payment_id == payment_id)
+            select(Pago).where(Pago.mp_payment_id == resolved_payment_id)
         ).first()
 
         if not pago:
@@ -383,7 +481,7 @@ class PaymentService:
 
         if pago:
             # Actualizar datos del pago
-            pago.mp_payment_id = payment_id
+            pago.mp_payment_id = resolved_payment_id
             pago.mp_status = estado_mp
             pago.mp_status_detail = estado_detail
             pago.mp_merchant_order_id = mp_info.get("mp_merchant_order_id")
@@ -428,6 +526,13 @@ class PaymentService:
         ultimo_pago = self._uow.pagos.get_ultimo_by_pedido(pedido_id)
         if ultimo_pago and ultimo_pago.estado == "aprobado":
             raise BadRequestException("El pedido ya tiene un pago aprobado")
+
+        # Marcar pagos pendientes anteriores como reemplazados
+        pagos_anteriores = self._uow.pagos.get_by_pedido(pedido_id)
+        for p in pagos_anteriores:
+            if p.estado == "pendiente":
+                p.estado = "reemplazado"
+                p.updated_at = datetime.utcnow()
 
         # Delegar a crear_pago (genera nueva preferencia con nueva idempotency_key)
         return self.crear_pago(pedido_id, usuario_id)

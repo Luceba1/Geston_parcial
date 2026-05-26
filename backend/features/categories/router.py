@@ -36,7 +36,7 @@ async def get_categoria(
 async def create_categoria(
     data: CategoriaCreate,
     service: CategoryService = Depends(get_category_service),
-    _: Usuario = Depends(require_role("admin", "cocinero")),
+    _: Usuario = Depends(require_role("admin")),
 ):
     """Crea una nueva categoría. Requiere rol STOCK o ADMIN."""
     return service.create(data)
@@ -47,7 +47,7 @@ async def update_categoria(
     categoria_id: int,
     data: CategoriaUpdate,
     service: CategoryService = Depends(get_category_service),
-    _: Usuario = Depends(require_role("admin", "cocinero")),
+    _: Usuario = Depends(require_role("admin")),
 ):
     """Actualiza una categoría. Requiere rol STOCK o ADMIN."""
     return service.update(categoria_id, data)
@@ -57,7 +57,7 @@ async def update_categoria(
 async def delete_categoria(
     categoria_id: int,
     service: CategoryService = Depends(get_category_service),
-    _: Usuario = Depends(require_role("admin", "cocinero")),
+    _: Usuario = Depends(require_role("admin")),
 ):
     """Elimina (soft delete) una categoría. Requiere rol STOCK o ADMIN."""
     service.soft_delete(categoria_id)

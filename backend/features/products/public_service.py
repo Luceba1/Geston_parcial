@@ -3,7 +3,7 @@ from sqlmodel import Session
 
 from features.products.models import Producto
 from features.products.schemas import (
-    ProductoResponse, ProductoListResponse, CategoriaInfo, IngredienteInfo,
+    ProductoResponse, ProductoListResponse, CategoriaInfo, IngredienteInfo, AlergenoInfo,
 )
 from features.repositories.producto_repository import ProductoRepository
 
@@ -66,12 +66,17 @@ class PublicCatalogService:
         ingredientes = []
         for pi in producto.ingredientes or []:
             if pi.ingrediente:
-                es_alergeno = bool(pi.ingrediente.alergenos)
+                alergenos = []
+                for rel in getattr(pi.ingrediente, "alergenos_rel", []) or []:
+                    if rel.alergeno:
+                        alergenos.append(
+                            AlergenoInfo(id=rel.alergeno.id, nombre=rel.alergeno.nombre, icono=rel.alergeno.icono)
+                        )
                 ingredientes.append(IngredienteInfo(
                     id=pi.ingrediente.id,
                     nombre=pi.ingrediente.nombre,
                     cantidad=pi.cantidad,
-                    alergeno=es_alergeno,
+                    alergenos=alergenos,
                 ))
         
         return ProductoResponse(

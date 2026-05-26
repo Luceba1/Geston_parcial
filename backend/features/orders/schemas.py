@@ -42,6 +42,7 @@ class HistorialEstadoResponse(BaseModel):
     id: int
     estado_id: int
     estado_nombre: str = ""
+    usuario_id: Optional[int] = None
     fecha_cambio: datetime
     notas: Optional[str] = None
 

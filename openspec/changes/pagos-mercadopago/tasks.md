@@ -55,9 +55,9 @@
 
 ## 9. Verificación
 
-- [ ] 9.1 Verificar que POST /api/v1/pagos/crear funciona con credenciales MP
-- [ ] 9.2 Verificar que el webhook procesa pagos aprobados y transiciona el pedido
-- [ ] 9.3 Verificar que consultar pago retorna estado correcto
-- [ ] 9.4 Verificar que reintentar pago crea nueva preferencia
-- [ ] 9.5 Verificar flujo completo: crear pedido → pagar → webhook → confirmado
-- [ ] 9.6 Verificar que sin credenciales MP los endpoints devuelven 501
+- [x] 9.1 Verificar que POST /api/v1/pagos/crear funciona con credenciales MP ✅ (probado con ngrok)
+- [ ] 9.2 Verificar que el webhook procesa pagos aprobados y transiciona el pedido ⏳ (requiere IPN de MP)
+- [x] 9.3 Verificar que consultar pago retorna estado correcto ✅
+- [x] 9.4 Verificar que reintentar pago crea nueva preferencia ✅
+- [x] 9.5 Verificar flujo completo: crear pedido → pagar → redirect → confirmado ✅ (probado hoy)
+- [ ] 9.6 Verificar que sin credenciales MP los endpoints devuelven 501 ⏳

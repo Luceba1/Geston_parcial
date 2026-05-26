@@ -28,16 +28,16 @@ export const useCartStore = create<CartState>()(
       items: [],
       addItem: (item) => {
         const items = get().items
-        const key = `${item.productoId}-${(item.excludedIngredientIds || []).sort().join(',')}`
+        const key = `${item.productoId}-${[...(item.excludedIngredientIds || [])].sort().join(',')}`
         const existing = items.find((i) => {
-          const iKey = `${i.productoId}-${(i.excludedIngredientIds || []).sort().join(',')}`
+          const iKey = `${i.productoId}-${[...(i.excludedIngredientIds || [])].sort().join(',')}`
           return iKey === key
         })
         if (existing) {
           set({
             items: items.map((i) =>
               i.productoId === existing.productoId &&
-              (i.excludedIngredientIds || []).sort().join(',') === (existing.excludedIngredientIds || []).sort().join(',')
+              [...(i.excludedIngredientIds || [])].sort().join(',') === [...(existing.excludedIngredientIds || [])].sort().join(',')
                 ? { ...i, cantidad: i.cantidad + item.cantidad }
                 : i
             ),

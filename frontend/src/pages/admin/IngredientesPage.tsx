@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useActionState, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useActionState } from 'react'
 import { api } from '../../lib/api'
 import { Badge, Button, Card, Modal, PageContainer, Pagination, TableSkeleton, ConfirmDialog } from '../../shared/ui'
 import { HelpButton } from '../../shared/ui/HelpButton'
@@ -9,12 +9,19 @@ import { handleError } from '../../shared/utils/logger'
 import type { FormState } from '../../shared/types/form'
 import { helpContent } from './helpContent'
 
+interface AlergenoOption {
+  id: number
+  nombre: string
+  icono?: string | null
+}
+
 interface Ingrediente {
   id: number
   nombre: string
   unidad_medida: string
   disponible: boolean
   alergenos?: string | null
+  alergenos_list?: AlergenoOption[]
   creado_en?: string
   actualizado_en?: string
 }
@@ -23,30 +30,14 @@ interface IngredienteFormData {
   nombre: string
   unidad_medida: string
   alergenos: string
+  alergeno_ids: string
 }
 
 const emptyForm: IngredienteFormData = {
   nombre: '',
   unidad_medida: 'unidad',
   alergenos: '',
-}
-
-const ALERGENOS_COMUNES = [
-  'Lácteos',
-  'Huevo',
-  'Gluten',
-  'Maní',
-  'Frutos secos',
-  'Soja',
-  'Pescado',
-  'Sésamo',
-  'Mostaza',
-  'Sulfitos',
-]
-
-function parseAlergenos(raw: string | null | undefined): string[] {
-  if (!raw) return []
-  return raw.split(',').map((a) => a.trim()).filter(Boolean)
+  alergeno_ids: '',
 }
 
 const UNIDADES = [
@@ -66,6 +57,7 @@ export default function IngredientesPage() {
   const [loading, setLoading] = useState(true)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
+  const [alergenosDisponibles, setAlergenosDisponibles] = useState<AlergenoOption[]>([])
   const addToast = useUIStore((s) => s.addToast)
 
   const limit = 10
@@ -73,8 +65,21 @@ export default function IngredientesPage() {
 
   const modal = useFormModal<IngredienteFormData, Ingrediente>(emptyForm)
   const deleteDialog = useConfirmDialog<Ingrediente>()
-  const [alergenosSeleccionados, setAlergenosSeleccionados] = useState<string[]>([])
-  const alergenosRef = useRef<HTMLInputElement>(null)
+  const [alergenoIdsSeleccionados, setAlergenoIdsSeleccionados] = useState<number[]>([])
+
+  // Fetch allergens from API
+  const fetchAlergenos = useCallback(async () => {
+    try {
+      const res = await api.get('/alergenos')
+      setAlergenosDisponibles(res.data || [])
+    } catch {
+      // Non-critical, form will still work
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchAlergenos()
+  }, [fetchAlergenos])
 
   const fetchItems = useCallback(async () => {
     try {
@@ -94,24 +99,27 @@ export default function IngredientesPage() {
 
   const openEditModal = useCallback(
     (item: Ingrediente) => {
-      const parsed = parseAlergenos(item.alergenos)
+      const ids = (item.alergenos_list || []).map((a) => a.id)
       modal.openEdit(item)
       modal.setFormData({
         nombre: item.nombre,
         unidad_medida: item.unidad_medida,
         alergenos: item.alergenos || '',
+        alergeno_ids: ids.join(','),
       })
-      setAlergenosSeleccionados(parsed)
+      setAlergenoIdsSeleccionados(ids)
     },
     [modal]
   )
 
   const submitAction = useCallback(
     async (_prevState: FormState<IngredienteFormData>, formData: FormData): Promise<FormState<IngredienteFormData>> => {
+      const alergenoIdsRaw = formData.get('alergeno_ids') as string
       const data: IngredienteFormData = {
         nombre: formData.get('nombre') as string,
         unidad_medida: formData.get('unidad_medida') as string,
         alergenos: (formData.get('alergenos') as string) || '',
+        alergeno_ids: alergenoIdsRaw || '',
       }
 
       if (!data.nombre.trim()) {
@@ -119,8 +127,14 @@ export default function IngredientesPage() {
       }
 
       try {
-        const payload: Record<string, unknown> = { ...data }
-        if (!payload.alergenos) delete payload.alergenos
+        const payload: Record<string, unknown> = {
+          nombre: data.nombre,
+          unidad_medida: data.unidad_medida,
+        }
+        if (data.alergenos) payload.alergenos = data.alergenos
+        if (data.alergeno_ids) {
+          payload.alergeno_ids = data.alergeno_ids.split(',').map(Number)
+        }
 
         if (modal.selectedItem) {
           await api.put(`/ingredientes/${modal.selectedItem.id}`, payload)
@@ -146,11 +160,11 @@ export default function IngredientesPage() {
 
   if (state.isSuccess && modal.isOpen) {
     modal.close()
-    setAlergenosSeleccionados([])
+    setAlergenoIdsSeleccionados([])
   }
 
   const openCreateModal = useCallback(() => {
-    setAlergenosSeleccionados([])
+    setAlergenoIdsSeleccionados([])
     modal.openCreate()
   }, [modal])
 
@@ -204,7 +218,15 @@ export default function IngredientesPage() {
         key: 'alergenos',
         label: 'Alérgenos',
         render: (item: Ingrediente) =>
-          item.alergenos ? (
+          item.alergenos_list && item.alergenos_list.length > 0 ? (
+            <div className="flex gap-1 flex-wrap">
+              {item.alergenos_list.map((a) => (
+                <span key={a.id} className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">
+                  {a.nombre}
+                </span>
+              ))}
+            </div>
+          ) : item.alergenos ? (
             <div className="flex gap-1 flex-wrap">
               {item.alergenos.split(',').map((a, i) => (
                 <span key={i} className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">
@@ -401,41 +423,55 @@ export default function IngredientesPage() {
           <div>
             <label className="text-sm font-medium text-foreground block mb-2">Alérgenos</label>
             <input
-              ref={alergenosRef}
               type="hidden"
               name="alergenos"
-              value={alergenosSeleccionados.join(', ')}
+              value={alergenoIdsSeleccionados.map((id) => {
+                const a = alergenosDisponibles.find((x) => x.id === id)
+                return a ? a.nombre : ''
+              }).filter(Boolean).join(', ')}
             />
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-              {ALERGENOS_COMUNES.map((alergeno) => {
-                const checked = alergenosSeleccionados.includes(alergeno)
-                return (
-                  <label
-                    key={alergeno}
-                    className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent cursor-pointer text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => {
-                        setAlergenosSeleccionados((prev) =>
-                          checked ? prev.filter((a) => a !== alergeno) : [...prev, alergeno]
-                        )
-                      }}
-                      className="rounded border-border text-yellow-600 focus-visible:ring-ring"
-                    />
-                    <span className="text-foreground">{alergeno}</span>
-                  </label>
-                )
-              })}
-            </div>
-            {alergenosSeleccionados.length > 0 && (
+            <input
+              type="hidden"
+              name="alergeno_ids"
+              value={alergenoIdsSeleccionados.join(',')}
+            />
+            {alergenosDisponibles.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Cargando alérgenos...</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                {alergenosDisponibles.map((alergeno) => {
+                  const checked = alergenoIdsSeleccionados.includes(alergeno.id)
+                  return (
+                    <label
+                      key={alergeno.id}
+                      className="flex items-center gap-2 px-2 py-1 rounded hover:bg-accent cursor-pointer text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setAlergenoIdsSeleccionados((prev) =>
+                            checked ? prev.filter((id) => id !== alergeno.id) : [...prev, alergeno.id]
+                          )
+                        }}
+                        className="rounded border-border text-yellow-600 focus-visible:ring-ring"
+                      />
+                      <span className="text-foreground">{alergeno.nombre}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+            {alergenoIdsSeleccionados.length > 0 && (
               <div className="flex gap-1 flex-wrap mt-2">
-                {alergenosSeleccionados.map((a) => (
-                  <span key={a} className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">
-                    {a}
-                  </span>
-                ))}
+                {alergenoIdsSeleccionados.map((id) => {
+                  const a = alergenosDisponibles.find((x) => x.id === id)
+                  return a ? (
+                    <span key={id} className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">
+                      {a.nombre}
+                    </span>
+                  ) : null
+                })}
               </div>
             )}
           </div>

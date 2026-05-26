@@ -83,6 +83,7 @@ async def update_estado_pedido(
     data: EstadoUpdateRequest,
     current_user: Usuario = Depends(get_current_user),
     service: OrderService = Depends(get_order_service),
+    _= Depends(require_role("admin", "cocinero", "repartidor", "cliente")),
 ):
     """Actualiza el estado de un pedido siguiendo la FSM."""
     user_roles = [ur.rol.nombre.lower() if ur.rol else "" for ur in (current_user.roles or [])]

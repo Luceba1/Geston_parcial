@@ -4,7 +4,8 @@ from sqlmodel import Session
 from features.products.models import Producto, ProductoCategoria, ProductoIngrediente
 from features.products.schemas import (
     ProductoCreate, ProductoUpdate, ProductoResponse, ProductoListResponse,
-    CategoriaInfo, IngredienteInfo, ProductoCategoriaAssign, ProductoIngredienteAssign,
+    CategoriaInfo, IngredienteInfo, AlergenoInfo,
+    ProductoCategoriaAssign, ProductoIngredienteAssign,
 )
 from features.repositories.producto_repository import ProductoRepository
 from features.repositories.categoria_repository import CategoriaRepository
@@ -150,12 +151,17 @@ class ProductoService:
         ingredientes = []
         for pi in producto.ingredientes or []:
             if pi.ingrediente:
-                es_alergeno = bool(pi.ingrediente.alergenos)
+                alergenos = []
+                for rel in getattr(pi.ingrediente, "alergenos_rel", []) or []:
+                    if rel.alergeno:
+                        alergenos.append(
+                            AlergenoInfo(id=rel.alergeno.id, nombre=rel.alergeno.nombre, icono=rel.alergeno.icono)
+                        )
                 ingredientes.append(IngredienteInfo(
                     id=pi.ingrediente.id,
                     nombre=pi.ingrediente.nombre,
                     cantidad=pi.cantidad,
-                    alergeno=es_alergeno,
+                    alergenos=alergenos,
                 ))
         
         return ProductoResponse(

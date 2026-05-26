@@ -16,7 +16,8 @@ import OrderDetailPage from '../pages/OrderDetailPage'
 import PagoExitosoPage from '../pages/PagoExitosoPage'
 import PagoFallidoPage from '../pages/PagoFallidoPage'
 import PagoPendientePage from '../pages/PagoPendientePage'
-import { CategoriasPage, IngredientesPage, ProductosPage, PedidosPage, DashboardPage, UsuariosPage, ConfigPage } from '../pages/admin'
+import { CategoriasPage, IngredientesPage, ProductosPage, PedidosPage, DashboardPage, UsuariosPage, ConfigPage, AlergenosPage } from '../pages/admin'
+import CocinaPage from '../pages/CocinaPage'
 
 export function AppRoutes() {
   return (
@@ -51,15 +52,23 @@ export function AppRoutes() {
       </Route>
 
       {/* Rutas protegidas por rol (STOCK/ADMIN/REPARTIDOR) */}
-      <Route element={<ProtectedRoute roles={['STOCK', 'ADMIN', 'admin', 'cocinero', 'repartidor']} />}>
+      <Route element={<ProtectedRoute roles={['admin', 'repartidor', 'stock', 'cocinero', 'pedidos']} />}>
         <Route element={<Layout />}>
           <Route path="/admin" element={<DashboardPage />} />
           <Route path="/admin/usuarios" element={<UsuariosPage />} />
           <Route path="/admin/config" element={<ConfigPage />} />
           <Route path="/categorias" element={<CategoriasPage />} />
           <Route path="/ingredientes" element={<IngredientesPage />} />
+          <Route path="/admin/alergenos" element={<AlergenosPage />} />
           <Route path="/productos" element={<ProductosPage />} />
           <Route path="/pedidos" element={<PedidosPage />} />
+        </Route>
+      </Route>
+
+      {/* KDS: Pantalla de cocina */}
+      <Route element={<ProtectedRoute roles={['cocinero', 'admin', 'pedidos']} />}>
+        <Route element={<Layout />}>
+          <Route path="/cocina" element={<CocinaPage />} />
         </Route>
       </Route>
 
